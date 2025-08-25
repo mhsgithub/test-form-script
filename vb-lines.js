@@ -1,40 +1,23 @@
-(function () {
-  // ---- CONFIG ----
-  var sourceControlId = :control_3333450; // e.g. 123456789
-  var outContainerId  = "vb-out";
-  // ----------------
+// Replace these with your actual field names/IDs:
+const SOURCE_SELECTOR = 3333450;    // your hidden field
+const TARGET_SELECTOR = 3333451;   // your long text field
 
-  function lineShift(raw) {
-    if (!raw || typeof raw !== "string") return "";
+function format(raw) {
+  return (raw || '')
+    .replace(/\s*,\s*/g, ',')                      // tidy commas/spaces
+    .replace(/(?!^)(\d{2}-\d{2}-\d{4})/g, '\n$1')  // newline before each date (not the first)
+    .trim();
+}
 
-    // Insert <br> after any ",<digits>," pattern (end of a row)
-    // Example: "... ,3,07-08-2025" -> "... ,3<br>07-08-2025"
-    var s = raw.replace(/,(\d+),/g, ',$1<br>');
+function update() {
+  const src = document.querySelector(SOURCE_SELECTOR);
+  const dst = document.querySelector(TARGET_SELECTOR);
+  if (!src || !dst) return;
+  dst.value = format(src.value || src.textContent || '');
+}
 
-    // If the last row ends with ",<digits>" (no trailing comma), also add a <br>
-    s = s.replace(/,(\d+)\s*$/g, ',$1<br>');
-
-    // Optional: tidy start/end commas or whitespace
-    return s.trim();
-  }
-
-  function init() {
-    var engine = loader.getEngine();
-    var doc = engine.getDocument();
-    var src = doc.getElementById(sourceControlId);
-    if (!src) return;
-
-    function render() {
-      var raw = src.getValue && src.getValue();
-      var out = document.getElementById(outContainerId);
-      if (out) out.innerHTML = lineShift(raw);
-    }
-
-    render();
-    if (src.on) src.on('value-change', render);
-  }
-
-  window.addEventListener('load', init);
-
-})();
-
+// run on load and whenever the source changes
+document.addEventListener('DOMContentLoaded', update);
+document.addEventListener('input', e => {
+  if (e.target && e.target.matches(SOURCE_SELECTOR)) update();
+});
