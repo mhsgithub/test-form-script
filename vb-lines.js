@@ -1,39 +1,81 @@
 (function () {
-  // ---- CONFIG ----
-  var sourceControlId = 3333450; // e.g. 123456789
-  var outContainerId  = "vb-out";
-  // ----------------
+  // ===== CONFIG =====
+  var sourceControlId = 3333450;     // your hidden field ID
+  var outContainerId  = "vb-out";    // <div id="vb-out"></div>
+  var POLL_MS = 500;
+  var POLL_MAX = 30; // ≈15s
+  // ==================
 
-  function lineShift(raw) {
-    if (!raw || typeof raw !== "string") return "";
-
-    // Insert <br> after any ",<digits>," pattern (end of a row)
-    // Example: "... ,3,07-08-2025" -> "... ,3<br>07-08-2025"
-    var s = raw.replace(/,(\d+),/g, ',$1<br>');
-
-    // If the last row ends with ",<digits>" (no trailing comma), also add a <br>
-    s = s.replace(/,(\d+)\s*$/g, ',$1<br>');
-
-    // Optional: tidy start/end commas or whitespace
-    return s.trim();
+  function log(outEl, msg) {
+    var p = document.createElement('div');
+    p.style.fontFamily = 'monospace';
+    p.style.opacity = '0.8';
+    p.textContent = msg;
+    outEl.appendChild(p);
   }
 
-  function init() {
+  function splitRows(raw) {
+    if (!raw || typeof raw !== "string") return [];
+    var withBreaks = raw
+      .replace(/,\s*(\d+)\s*,/g, ',$1\n')
+      .replace(/,\s*(\d+)\s*$/g, ',$1\n');
+    return withBreaks.split('\n').map(function (s) { return s.trim(); }).filter(Boolean);
+  }
+
+  function renderLines(outEl, raw) {
+    while (outEl.firstChild) outEl.removeChild(outEl.firstChild);
+    if (!raw) { log(outEl, "No value yet"); return; }
+
+    var lines = splitRows(raw);
+    if (!lines.length) { log(outEl, "Parsed 0 rows"); return; }
+
+    for (var i = 0; i < lines.length; i++) {
+      var div = document.createElement('div');
+      div.textContent = lines[i];
+      outEl.appendChild(div);
+    }
+  }
+
+  function initWhenReady() {
+    if (!window.loader || !loader.getEngine) {
+      setTimeout(initWhenReady, 200);
+      return;
+    }
     var engine = loader.getEngine();
     var doc = engine.getDocument();
-    var src = doc.getElementById(sourceControlId);
-    if (!src) return;
 
-    function render() {
-      var raw = src.getValue && src.getValue();
-      var out = document.getElementById(outContainerId);
-      if (out) out.innerHTML = lineShift(raw);
+    var src = doc.getElementById(sourceControlId);
+    var out = document.getElementById(outContainerId);
+
+    if (!out) { setTimeout(initWhenReady, 200); return; }
+    if (!src) {
+      out.textContent = "Could not find field ID " + sourceControlId + ". Check the Field ID.";
+      return;
     }
 
-    render();
-    if (src.on) src.on('value-change', render);
+    // Immediate render
+    renderLines(out, src.getValue && src.getValue());
+
+    // Poll until non-empty (covers late virtual DB fill)
+    var tries = 0;
+    var poll = setInterval(function () {
+      var val = src.getValue && src.getValue();
+      if (val && String(val).trim()) {
+        renderLines(out, val);
+        clearInterval(poll);
+      } else if (++tries >= POLL_MAX) {
+        log(out, "Gave up waiting after " + (POLL_MS * POLL_MAX) + "ms");
+        clearInterval(poll);
+      }
+    }, POLL_MS);
+
+    // Listen for changes if they fire
+    if (src.on) {
+      src.on('value-change', function () {
+        renderLines(out, src.getValue && src.getValue());
+      });
+    }
   }
 
-  window.addEventListener('load', init);
-
+  window.addEventListener('load', initWhenReady);
 })();
