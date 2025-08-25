@@ -1,6 +1,6 @@
 (function () {
   // ---- CONFIG ----
-  var sourceControlId = 3333450; // e.g. 123456789
+  var sourceControlId = :control_3333450; // e.g. 123456789
   var outContainerId  = "vb-out";
   // ----------------
 
@@ -37,3 +37,4 @@
   window.addEventListener('load', init);
 
 })();
+
